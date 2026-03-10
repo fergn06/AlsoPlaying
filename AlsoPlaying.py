@@ -3643,6 +3643,7 @@ import os
 GAME_NAME  = "{{GAME_NAME}}"
 PLATFORM   = "{{PLATFORM}}"
 ICON_B64   = "{{ICON_B64}}"
+ICON_EXT   = "{{ICON_EXT}}"
 
 class GameTrackerWidget:
     def __init__(self):
@@ -3657,11 +3658,17 @@ class GameTrackerWidget:
         if ICON_B64:
             try:
                 icon_data = base64.b64decode(ICON_B64)
-                tmp_icon = os.path.join(tempfile.gettempdir(), "gt_icon.png")
+                ext = ICON_EXT if ICON_EXT else ".ico"
+                tmp_icon = os.path.join(tempfile.gettempdir(), f"gt_icon{ext}")
                 with open(tmp_icon, "wb") as f:
                     f.write(icon_data)
-                img = tk.PhotoImage(file=tmp_icon)
-                self.root.iconphoto(True, img)
+                if ext == ".ico":
+                    # iconbitmap es el método nativo de Windows para .ico
+                    self.root.iconbitmap(tmp_icon)
+                else:
+                    # Para PNG/JPG usar iconphoto
+                    img = tk.PhotoImage(file=tmp_icon)
+                    self.root.iconphoto(True, img)
             except Exception:
                 pass
 
@@ -3723,6 +3730,8 @@ class GameTrackerWidget:
         self.root.mainloop()
 
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
     GameTrackerWidget().run()
 """
 
@@ -3742,6 +3751,29 @@ DESKTOP  = os.path.join(os.path.expanduser("~"), "Desktop")
 #  APP CREADORA
 # ══════════════════════════════════════════════════════════════════════════════
 class CreatorApp:
+    # ── Config persistence ────────────────────────────────────────────────────
+    _CFG_DIR  = os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "AlsoPlaying")
+    _CFG_FILE = os.path.join(_CFG_DIR, "config.json")
+
+    @classmethod
+    def _load_cfg(cls) -> dict:
+        try:
+            import json
+            with open(cls._CFG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    @classmethod
+    def _save_cfg(cls, data: dict):
+        try:
+            import json
+            os.makedirs(cls._CFG_DIR, exist_ok=True)
+            with open(cls._CFG_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("AlsoPlaying")
@@ -3750,7 +3782,12 @@ class CreatorApp:
 
         self.custom_icon_path = None   # None = usar icono por defecto
 
-        w, h = 420, 490
+        # Cargar última ruta de destino guardada (default: Escritorio)
+        cfg = self._load_cfg()
+        saved_dest = cfg.get("dest_folder", "")
+        self.dest_folder = saved_dest if (saved_dest and os.path.isdir(saved_dest)) else DESKTOP
+
+        w, h = 420, 590
         sw = self.root.winfo_screenwidth()
         sh = self.root.winfo_screenheight()
         self.root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
@@ -3808,6 +3845,7 @@ class CreatorApp:
                  font=("Segoe UI", 9, "bold"), fg=FG_DIM, bg=BG, anchor="w")\
           .pack(fill="x")
 
+        self._icon_section_frame = form  # guardar referencia para _on_icon_mode
         icon_row = tk.Frame(form, bg=BG)
         icon_row.pack(fill="x", pady=(4, 0))
 
@@ -3830,8 +3868,12 @@ class CreatorApp:
             command=self._on_icon_mode)
         rb_custom.pack(side="left", padx=(16, 0))
 
-        # Fila de selección de archivo (oculta por defecto)
-        self.icon_file_row = tk.Frame(form, bg=BG)
+        # Wrapper siempre visible que mantiene el lugar correcto en el layout
+        _wrapper = tk.Frame(form, bg=BG)
+        _wrapper.pack(fill="x")
+
+        # Fila de selección (hijo del wrapper, se muestra/oculta dentro de él)
+        self.icon_file_row = tk.Frame(_wrapper, bg=BG)
         self.icon_path_var = tk.StringVar(value="Ningún archivo seleccionado")
         self.icon_path_lbl = tk.Label(
             self.icon_file_row, textvariable=self.icon_path_var,
@@ -3846,6 +3888,29 @@ class CreatorApp:
             relief="flat", cursor="hand2", padx=8,
             command=self._pick_icon)\
           .pack(side="left", padx=(4, 0))
+
+        # ── Carpeta de destino ────────────────────────────────────────────────
+        tk.Label(form, text="Guardar .exe en",
+                 font=("Segoe UI", 9, "bold"), fg=FG_DIM, bg=BG, anchor="w")\
+          .pack(fill="x", pady=(12, 0))
+
+        dest_row = tk.Frame(form, bg=ENTRY_BG)
+        dest_row.pack(fill="x", pady=(4, 0))
+
+        self.dest_var = tk.StringVar(value=self.dest_folder)
+        dest_lbl = tk.Label(
+            dest_row, textvariable=self.dest_var,
+            font=("Segoe UI", 8), fg=FG_DIM, bg=ENTRY_BG,
+            anchor="w", padx=6, pady=4)
+        dest_lbl.pack(side="left", fill="x", expand=True)
+
+        tk.Button(
+            dest_row, text="Cambiar…",
+            font=("Segoe UI", 8, "bold"),
+            fg=FG, bg=ACCENT, activebackground=HOVER, activeforeground=FG,
+            relief="flat", cursor="hand2", padx=8,
+            command=self._pick_dest)\
+          .pack(side="right", padx=(4, 0))
 
         # ── Botón generar ─────────────────────────────────────────────────────
         self.gen_btn = tk.Button(
@@ -3875,8 +3940,8 @@ class CreatorApp:
     # ── Icono ─────────────────────────────────────────────────────────────────
     def _on_icon_mode(self):
         if self.icon_mode.get() == "custom":
-            self.icon_file_row.pack(fill="x", pady=(6, 0),
-                                    before=self.gen_btn)
+            # Mostrar la fila dentro del wrapper (que siempre está en el layout)
+            self.icon_file_row.pack(fill="x", pady=(10, 0))
         else:
             self.icon_file_row.pack_forget()
             self.custom_icon_path = None
@@ -3885,10 +3950,28 @@ class CreatorApp:
     def _pick_icon(self):
         path = filedialog.askopenfilename(
             title="Selecciona un icono",
-            filetypes=[("Iconos ICO", "*.ico")])
+            filetypes=[
+                ("Imágenes", "*.ico *.png *.jpg *.jpeg"),
+                ("Iconos ICO", "*.ico"),
+                ("Todos los archivos", "*.*")
+            ]
+        )
         if path:
             self.custom_icon_path = path
             self.icon_path_var.set(os.path.basename(path))
+
+    def _pick_dest(self):
+        folder = filedialog.askdirectory(
+            title="Selecciona la carpeta de destino",
+            initialdir=self.dest_folder
+        )
+        if folder:
+            self.dest_folder = folder
+            self.dest_var.set(folder)
+            # Guardar en config
+            cfg = self._load_cfg()
+            cfg["dest_folder"] = folder
+            self._save_cfg(cfg)
 
     # ── Generar ───────────────────────────────────────────────────────────────
     def _on_generate(self):
@@ -3936,7 +4019,8 @@ class CreatorApp:
             code = WIDGET_TEMPLATE\
                 .replace("{{GAME_NAME}}", game.replace('"', '\\"'))\
                 .replace("{{PLATFORM}}",  plat.replace('"', '\\"'))\
-                .replace("{{ICON_B64}}",  icon_b64)
+                .replace("{{ICON_B64}}",  icon_b64)\
+                .replace("{{ICON_EXT}}",  icon_ext)
 
             script = os.path.join(tmp_dir, "tracker_tmp.py")
             with open(script, "w", encoding="utf-8") as f:
@@ -3948,15 +4032,118 @@ class CreatorApp:
             exe_name = f"{safe(game)} - {safe(plat)}"
 
             # 4. Argumentos PyInstaller
-            # Usar el python_path detectado al arrancar
-            python_exe = getattr(self, "python_path", None) or sys.executable
+            # IMPORTANTE: cuando corremos como .exe compilado (frozen), sys.executable
+            # apunta al propio .exe, NO a python.exe. Usarlo causaría un bucle infinito.
+            _stored_path = getattr(self, "python_path", None)
+            _is_frozen = getattr(sys, "frozen", False)
+            
+            python_exe = None
+            if _stored_path and os.path.isfile(_stored_path) and not _is_frozen:
+                python_exe = _stored_path
+            elif _is_frozen:
+                # Intentar encontrar Python de forma inteligente en el registro/sistema
+                # para no depender del alias de la Microsoft Store que suele fallar.
+                _py_list = find_all_pythons()
+                if _py_list:
+                    # Usar el primero (que ya viene ordenado por versión más alta)
+                    python_exe = _py_list[0][0]
+                else:
+                    # Último recurso: buscar en el PATH
+                    import shutil as _shutil
+                    _found = _shutil.which("python") or _shutil.which("python3")
+                    if _found and "WindowsApps" not in _found:
+                        python_exe = _found
+            else:
+                python_exe = sys.executable
+
+            if not python_exe:
+                # Si no hay Python, se lo instalamos nosotros mismos para hacérselo fácil
+                from tkinter import messagebox as _mb
+                quiere_instalar = _mb.askyesno(
+                    "Configuración Necesaria",
+                    "Para generar archivos .exe por primera vez, necesito configurar un componente gratuito (Python 3.13).\n\n"
+                    "¿Quieres que lo descargue e instale automáticamente por ti ahora mismo?",
+                    icon="question"
+                )
+                if quiere_instalar:
+                    # Usar la función de instalación automatizada
+                    _install_python_automated(self.root)
+                    # El instalador cerrará la app al terminar, el usuario solo tiene que volver a abrirla
+                    return 
+                else:
+                    raise RuntimeError(
+                        "No se puede generar el .exe sin Python.\n"
+                        "Puedes instalarlo manualmente desde python.org"
+                    )
+
+            # Verificar que el Python elegido tiene soporte para tkinter (interfaz gráfica)
+            # para evitar que el tracker .exe salga sin interfaz (error "No module named tkinter")
+            try:
+                r_tk = subprocess.run([python_exe, "-c", "import tkinter"], 
+                                     capture_output=True, creationflags=0x08000000)
+                if r_tk.returncode != 0:
+                    raise RuntimeError(
+                        "El Python detectado no tiene soporte para interfaces (tkinter).\n\n"
+                        "Te recomiendo desinstalar Python y dejar que AlsoPlaying lo instale "
+                        "automáticamente para asegurar compatibilidad total."
+                    )
+            except Exception as e:
+                if "RuntimeError" in str(e): raise e
+                # Si falló por otra cosa (timeout, etc), intentamos seguir pero avisamos en log
+                print(f"[DEBUG] Error validando tkinter: {e}")
+
+            creation_flags = 0x08000000 if sys.platform == "win32" else 0
+
+            # ── 4a. Auto-detectar / instalar PyInstaller ──────────────────────
+            def _pi_installed():
+                """True si PyInstaller está disponible para python_exe.
+                Usa find_spec en vez de import para no lanzar ModuleNotFoundError
+                (el debugger de VS Code pausa en excepciones de procesos hijo)."""
+                r = subprocess.run(
+                    [python_exe, "-c",
+                     "import importlib.util; "
+                     "s=importlib.util.find_spec('PyInstaller'); "
+                     "print('ok' if s else 'missing')"],
+                    capture_output=True, text=True, creationflags=creation_flags
+                )
+                return r.returncode == 0 and "ok" in r.stdout
+
+            if not _pi_installed():
+                self.root.after(0, self._set_status,
+                                "PyInstaller no encontrado, instalando… ⏳")
+                install = subprocess.run(
+                    [python_exe, "-m", "pip", "install", "--upgrade", "pyinstaller"],
+                    capture_output=True, text=True, creationflags=creation_flags
+                )
+                if install.returncode != 0:
+                    raise RuntimeError(
+                        f"No se pudo instalar PyInstaller automáticamente:\n"
+                        f"{install.stderr[-600:]}\n\n"
+                        f"Instálalo manualmente con:\n  pip install pyinstaller"
+                    )
+                # Verificar que quedó bien instalado
+                if not _pi_installed():
+                    raise RuntimeError(
+                        "PyInstaller sigue sin detectarse tras la instalación.\n\n"
+                        "Prueba manualmente:\n  pip install pyinstaller"
+                    )
+                self.root.after(0, self._set_status,
+                                "PyInstaller instalado. Compilando… ⏳")
+
+            # ── 4b. Construir comando ─────────────────────────────────────────
+            dist_dir = os.path.join(tmp_dir, "dist")
             cmd = [
                 python_exe, "-m", "PyInstaller",
                 "--onefile", "--noconsole",
                 f"--name={exe_name}",
-                f"--distpath={tmp_dir}",
+                f"--distpath={dist_dir}",
                 f"--workpath={os.path.join(tmp_dir, 'build')}",
                 f"--specpath={tmp_dir}",
+                "--noconfirm",
+                "--clean",
+                # Forzar inclusión AGRESIVA de tkinter y todas sus dependencias (Tcl/Tk, DLLs, etc.)
+                "--collect-all", "tkinter",
+                "--hidden-import", "tkinter",
             ]
 
             # Añadir icono si es .ico (PyInstaller solo acepta .ico en Windows)
@@ -3965,23 +4152,47 @@ class CreatorApp:
 
             cmd.append(script)
 
-            # CREATE_NO_WINDOW evita que aparezca terminal al correr desde un .exe compilado
-            creation_flags = 0x08000000 if sys.platform == "win32" else 0  # CREATE_NO_WINDOW
             result = subprocess.run(cmd, capture_output=True, text=True,
                                     creationflags=creation_flags)
+            build_out = (result.stdout or "") + (result.stderr or "")
 
-            if result.returncode != 0:
-                raise RuntimeError(result.stderr[-800:])
+            # Detectar fallo aunque returncode sea 0 (pasa en Windows con CREATE_NO_WINDOW)
+            if result.returncode != 0 or "no module named pyinstaller" in build_out.lower():
+                raise RuntimeError(build_out[-1200:] or "Sin salida del compilador")
 
-            # 5. Mover al Escritorio
-            built = os.path.join(tmp_dir, exe_name + ".exe")
-            if not os.path.exists(built):
-                raise FileNotFoundError(f"PyInstaller no generó: {built}")
+            # 5. Localizar el .exe generado
+            # --distpath apunta a dist_dir, pero buscamos en distintas rutas por robustez
+            candidates = [
+                os.path.join(dist_dir, exe_name + ".exe"),            # ruta esperada
+                os.path.join(tmp_dir,  exe_name + ".exe"),            # fallback raíz
+                os.path.join(dist_dir, exe_name, exe_name + ".exe"), # --onedir accidental
+            ]
+            built = next((p for p in candidates if os.path.exists(p)), None)
+            if not built:
+                # Búsqueda recursiva de emergencia en toda la carpeta temporal
+                for root_dir, _, files in os.walk(tmp_dir):
+                    for fname in files:
+                        if fname.lower().endswith(".exe"):
+                            built = os.path.join(root_dir, fname)
+                            break
+                    if built:
+                        break
 
-            dest = os.path.join(DESKTOP, exe_name + ".exe")
+            if not built:
+                diag = ((result.stdout or "") + "\n" + (result.stderr or ""))[-800:]
+                raise FileNotFoundError(
+                    f"PyInstaller terminó sin errores pero no se encontró el .exe.\n\n"
+                    f"Log:\n{diag.strip()}"
+                )
+
+            # 6. Mover a la carpeta de destino elegida
+            dest_dir = getattr(self, "dest_folder", DESKTOP)
+            if not os.path.isdir(dest_dir):
+                dest_dir = DESKTOP
+            dest = os.path.join(dest_dir, exe_name + ".exe")
             shutil.move(built, dest)
 
-            # 6. Limpiar todo
+            # 7. Limpiar todo
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
             self.root.after(0, self._on_success, dest)
@@ -4032,50 +4243,284 @@ def _apply_main_icon(window):
     except Exception:
         pass
 
+def _install_python_automated(root):
+    import urllib.request
+    import subprocess
+    import tempfile
+    
+    root.deiconify()
+    root.title("Instalador de Python")
+    root.geometry("400x150")
+    root.configure(bg="#1a1a2e")
+    
+    lbl = tk.Label(root, text="Descargando Python 3.13...", 
+                   fg="#ffffff", bg="#1a1a2e", font=("Segoe UI", 10, "bold"))
+    lbl.pack(pady=(20, 10))
+    
+    p_var = tk.StringVar(value="Iniciando descarga...")
+    p_lbl = tk.Label(root, textvariable=p_var, fg="#aaaacc", bg="#1a1a2e")
+    p_lbl.pack()
+    root.update()
+
+    try:
+        url = "https://www.python.org/ftp/python/3.13.0/python-3.13.0-amd64.exe"
+        installer = os.path.join(tempfile.gettempdir(), "python_3.13_setup.exe")
+        
+        def _hook(blocks, size, total):
+            if total > 0:
+                perc = int(blocks * size * 100 / total)
+                p_var.set(f"{min(100, perc)}% - {blocks*size//1048576}MB de {total//1048576}MB")
+                root.update()
+
+        urllib.request.urlretrieve(url, installer, _hook)
+        
+        lbl.config(text="Instalando Python... (paciencia)")
+        p_var.set("Ejecutando instalador silencioso...")
+        root.update()
+        
+        # Ejecutar instalador silencioso
+        # PrependPath=1 es CRITICO para que detecte python en el futuro
+        subprocess.run([installer, "/quiet", "PrependPath=1", "Include_test=0"], check=True)
+        
+        messagebox.showinfo("¡Listo!", "Python 3.13 se ha instalado correctamente.\n\nLa aplicación se cerrará. Ábrela de nuevo para empezar.")
+        sys.exit(0)
+    except Exception as e:
+        messagebox.showerror("Error de instalación", f"No se pudo completar la instalación automática:\n\n{str(e)}\n\nIntenta instalarlo manualmente.")
+        sys.exit(0)
+
+def _select_python_dialog(pythons):
+    """Muestra un diálogo premium para elegir el intérprete de Python."""
+    import tkinter as tk
+    from tkinter import font as tkfont
+    
+    selected_path = [None]
+    
+    # Usar Tk() propio (no Toplevel) para evitar que tkinter cree un root
+    # implícito en blanco que aparece como ventana "tk" vacía.
+    root = tk.Tk()
+    root.withdraw()
+    _apply_main_icon(root)
+    root.title("Seleccionar Python - AlsoPlaying")
+    root.geometry("600x450")
+    root.configure(bg="#1a1a2e")
+    root.resizable(False, False)
+    
+    # Centrar ventana
+    root.update_idletasks()
+    sw = root.winfo_screenwidth()
+    sh = root.winfo_screenheight()
+    x = (sw - 600) // 2
+    y = (sh - 450) // 2
+    root.geometry(f'600x450+{x}+{y}')
+    root.deiconify()
+    
+    # Hacer la ventana modal
+    root.attributes("-topmost", True)
+    root.grab_set()
+    
+    header = tk.Label(root, text="Varios niveles de Python detectados", 
+                     fg="#ffffff", bg="#1a1a2e", font=("Segoe UI", 14, "bold"))
+    header.pack(pady=(25, 5))
+    
+    sub = tk.Label(root, text="Selecciona la versión que prefieres usar:", 
+                  fg="#aaaacc", bg="#1a1a2e", font=("Segoe UI", 10))
+    sub.pack(pady=(0, 20))
+    
+    # Estilo Scrollbar
+    container = tk.Frame(root, bg="#1a1a2e")
+    container.pack(fill="both", expand=True, padx=30, pady=10)
+    
+    canvas = tk.Canvas(container, bg="#1a1a2e", highlightthickness=0)
+    canvas.pack(side="left", fill="both", expand=True)
+    
+    scrollbar = tk.Scrollbar(container, orient="vertical", command=canvas.yview, bg="#1a1a2e")
+    scrollbar.pack(side="right", fill="y")
+    
+    scrollable_frame = tk.Frame(canvas, bg="#1a1a2e")
+    scrollable_frame.bind(
+        "<Configure>",
+        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+    )
+
+    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw", width=520)
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    # Colores
+    BTN_BG = "#242444"
+    BTN_HOVER = "#323266"
+    ACCENT = "#00d2ff"
+
+    def on_select(p):
+        selected_path[0] = p
+        root.destroy()
+
+    for path, (maj, min_v) in pythons:
+        f = tk.Frame(scrollable_frame, bg=BTN_BG, cursor="hand2", bd=0)
+        f.pack(fill="x", pady=6, padx=5)
+        
+        ver_str = f"Python {maj}.{min_v}"
+        recommend = ""
+        if (maj, min_v) >= (3, 13):
+            recommend = " (RECOMENDADO ⭐)"
+        
+        l1 = tk.Label(f, text=f"{ver_str}{recommend}", fg=ACCENT, bg=BTN_BG, 
+                     font=("Segoe UI", 10, "bold"), anchor="w", cursor="hand2")
+        l1.pack(fill="x", padx=15, pady=(10, 0))
+        
+        l2 = tk.Label(f, text=path, fg="#8888aa", bg=BTN_BG, 
+                     font=("Consolas", 8), anchor="w", cursor="hand2")
+        l2.pack(fill="x", padx=15, pady=(0, 10))
+
+        # Hover effects
+        def make_hover(frame, label1, label2):
+            def enter(e):
+                for w in [frame, label1, label2]: w.config(bg=BTN_HOVER)
+            def leave(e):
+                for w in [frame, label1, label2]: w.config(bg=BTN_BG)
+            for w in [frame, label1, label2]:
+                w.bind("<Enter>", enter)
+                w.bind("<Leave>", leave)
+                w.bind("<Button-1>", lambda e, p=path: on_select(p))
+        
+        make_hover(f, l1, l2)
+
+    # Esperar a que se cierre la ventana
+    root.wait_window()
+    return selected_path[0]
+
+def find_all_pythons():
+    """Busca todas las instalaciones de Python en el sistema (Registro, PATH, carpetas comunes)."""
+    import winreg, glob, subprocess
+    results = []
+    
+    # 1. Probar sys.executable (solo si NO estamos congelados/frozen)
+    if not getattr(sys, 'frozen', False):
+        try:
+            v = sys.version_info
+            results.append((sys.executable, v.major, v.minor))
+        except Exception: pass
+
+    # 2. Buscar en registro (todas las versiones)
+    for _root in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+        try:
+            k = winreg.OpenKey(_root, r"SOFTWARE\Python\PythonCore")
+            i = 0
+            while True:
+                try:
+                    ver_key_name = winreg.EnumKey(k, i)
+                    pk = winreg.OpenKey(k, ver_key_name + r"\InstallPath")
+                    path = winreg.QueryValueEx(pk, "ExecutablePath")[0]
+                    if os.path.exists(path) and "WindowsApps" not in path:
+                        parts = ver_key_name.split(".")
+                        maj = int(parts[0]) if len(parts) > 0 else 0
+                        min_v = int(parts[1]) if len(parts) > 1 else 0
+                        results.append((os.path.normpath(path), maj, min_v))
+                    i += 1
+                except (OSError, ValueError):
+                    break
+        except Exception:
+            pass
+
+    # 3. Buscar con 'where python'
+    try:
+        w = subprocess.run(["where", "python"], capture_output=True, text=True, creationflags=0x08000000)
+        for p in w.stdout.splitlines():
+            if os.path.exists(p) and "WindowsApps" not in p:
+                results.append((os.path.normpath(p), 0, 0))
+    except Exception: pass
+
+    # 4. Rutas comunes
+    for pat in [
+        r"C:\Python3*\python.exe",
+        r"C:\Users\*\AppData\Local\Programs\Python\Python3*\python.exe",
+    ]:
+        for p in glob.glob(pat):
+            results.append((os.path.normpath(p), 0, 0))
+
+    # 5. Filtrar, validar versiones y eliminar duplicados
+    valid_pythons = []
+    seen_paths = set()
+    
+    for path, maj, min_v in results:
+        path_key = path.lower()
+        if path_key in seen_paths: continue
+        seen_paths.add(path_key)
+        
+        if not os.path.exists(path): continue
+
+        # Si no sabemos la versión, intentamos obtenerla rápidamente
+        if maj == 0:
+            try:
+                # Usamos una llamada muy corta para no ralentizar la búsqueda
+                r = subprocess.run([path, "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"], 
+                                 capture_output=True, text=True, creationflags=0x08000000, timeout=2)
+                if r.returncode == 0:
+                    parts = r.stdout.strip().split(".")
+                    maj, min_v = int(parts[0]), int(parts[1])
+            except Exception:
+                continue
+        
+        # Aceptamos 3.10 o superior para compilar (aunque 3.13 es el recomendado)
+        if maj == 3 and min_v >= 10:
+            valid_pythons.append((path, (maj, min_v)))
+
+    # Ordenar por versión (lo más nuevo primero)
+    valid_pythons.sort(key=lambda x: x[1], reverse=True)
+    return valid_pythons
+
 def check_environment():
     import subprocess, winreg, glob, webbrowser
 
-    def find_python():
-        # Buscar en registro
-        for _root in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
-            try:
-                k  = winreg.OpenKey(_root, r"SOFTWARE\Python\PythonCore")
-                ver = winreg.EnumKey(k, 0)
-                pk = winreg.OpenKey(k, ver + r"\InstallPath")
-                path = winreg.QueryValueEx(pk, "ExecutablePath")[0]
-                if os.path.exists(path) and "WindowsApps" not in path:
-                    return path, ver
-            except Exception:
-                pass
-        # Buscar en rutas comunes
-        for pat in [
-            r"C:\Python3*\python.exe",
-            r"C:\Users\*\AppData\Local\Programs\Python\Python3*\python.exe",
-        ]:
-            hits = glob.glob(pat)
-            if hits:
-                p = hits[-1]
-                ver = os.path.basename(os.path.dirname(p)).replace("Python", "")
-                return p, ver
-        return None, None
+    all_pythons = find_all_pythons()
+    
+    python_path = None
+    python_ver = "0.0"
 
-    python_path, python_ver = find_python()
+    if not all_pythons:
+        python_path = None
+    elif len(all_pythons) == 1:
+        python_path, (maj, min_v) = all_pythons[0]
+        python_ver = f"{maj}.{min_v}"
+    else:
+        # Preguntar al usuario
+        python_path = _select_python_dialog(all_pythons)
+        if not python_path:
+            sys.exit(0) # Cerrar si cancela
+        
+        # Encontrar la versión del elegido
+        for p, v in all_pythons:
+            if p == python_path:
+                python_ver = f"{v[0]}.{v[1]}"
+                break
+
+    print(f"[DEBUG] Python elegido: {python_path} (Ver: {python_ver})")
 
     # ── 1. Comprobar Python ───────────────────────────────────────────────────
     if not python_path:
+        print("[DEBUG] No se encontró ninguna instalación de Python válida.")
         import tkinter as _tk
         from tkinter import messagebox as _mb
         _r = _tk.Tk(); _r.withdraw()
         _apply_main_icon(_r)
+        
+        res = _mb.askyesno(
+            "Python no detectado",
+            "AlsoPlaying necesita Python 3.13 para funcionar profesionalmente.\n\n"
+            "¿Quieres que lo descargue e instale automáticamente por ti?\n"
+            "(No requiere ir a ninguna web, se hace solo)",
+            icon="question"
+        )
+        if res:
+            _install_python_automated(_r)
+        
         resp = _mb.askyesno(
-            "Python no encontrado",
-            "AlsoPlaying necesita Python 3.13 para generar los .exe.\n\n"
-            "No se ha detectado Python instalado en este equipo.\n\n"
-            "¿Quieres abrir la página de descarga de Python ahora?",
+            "Alternativa manual",
+            "¿Prefieres abrir la página de descarga para hacerlo tú mismo?",
             icon="warning"
         )
         if resp:
             webbrowser.open("https://www.python.org/downloads/release/python-3130/")
+        
         _mb.showinfo(
             "Instrucciones",
             "Descarga e instala Python 3.13 desde python.org.\n\n"
@@ -4086,6 +4531,7 @@ def check_environment():
         _r.destroy()
         sys.exit(0)
 
+
     # ── 2. Comprobar versión mínima (3.13) ────────────────────────────────────
     try:
         result = subprocess.run(
@@ -4093,17 +4539,27 @@ def check_environment():
             capture_output=True, text=True
         )
         ver_str = result.stdout.strip() or result.stderr.strip()
+        print(f"[DEBUG] Verificando versión: {ver_str}")
         # Extraer número: "Python 3.13.1" → (3, 13)
         parts = ver_str.replace("Python", "").strip().split(".")
         major, minor = int(parts[0]), int(parts[1])
         if (major, minor) < (3, 13):
+            print(f"[DEBUG] Versión insuficiente ({major}.{minor}). Se requiere 3.13+")
             import tkinter as _tk
             from tkinter import messagebox as _mb
             _r = _tk.Tk(); _r.withdraw()
-            resp = _mb.askyesno(
+            res = _mb.askyesno(
                 "Python desactualizado",
                 f"Se encontró Python {ver_str} pero AlsoPlaying necesita Python 3.13 o superior.\n\n"
-                "¿Quieres abrir la página de descarga?",
+                "¿Quieres que descargue e instale la versión 3.13 automáticamente?",
+                icon="warning"
+            )
+            if res:
+                _install_python_automated(_r)
+            
+            resp = _mb.askyesno(
+                "Alternativa manual",
+                "¿Prefieres abrir la página de descarga para hacerlo tú mismo?",
                 icon="warning"
             )
             if resp:
@@ -4115,12 +4571,16 @@ def check_environment():
 
     # ── 3. Comprobar / instalar PyInstaller ───────────────────────────────────
     try:
-        result = subprocess.run(
-            [python_path, "-m", "PyInstaller", "--version"],
-            capture_output=True, text=True,
-            creationflags=0x08000000
+        # "import PyInstaller" es más fiable que "--version" en Windows
+        # porque con CREATE_NO_WINDOW el returncode puede ser 0 aunque no exista.
+        r_pi = subprocess.run(
+            [python_path, "-c",
+             "import importlib.util; "
+             "s=importlib.util.find_spec('PyInstaller'); "
+             "print('ok' if s else 'missing')"],
+            capture_output=True, text=True  # SIN creationflags para fiabilidad
         )
-        pyinstaller_ok = result.returncode == 0
+        pyinstaller_ok = r_pi.returncode == 0 and "ok" in r_pi.stdout
     except Exception:
         pyinstaller_ok = False
 
@@ -4130,9 +4590,9 @@ def check_environment():
         _r = _tk.Tk(); _r.withdraw()
         _apply_main_icon(_r)
         resp = _mb.askyesno(
-            "Dependencia faltante",
-            "PyInstaller no está instalado. Es necesario para generar los .exe.\n\n"
-            "¿Quieres instalarlo ahora automáticamente?",
+            "Paso 2: Instalar PyInstaller",
+            "Python se detectó correctamente, pero falta un complemento llamado 'PyInstaller' para crear los .exe.\n\n"
+            "¿Quieres instalarlo ahora automáticamente? (Tardará unos segundos)",
             icon="question"
         )
         if resp:
@@ -4150,14 +4610,29 @@ def check_environment():
             _r2.update()
 
             install = subprocess.run(
-                [python_path, "-m", "pip", "install", "pyinstaller"],
-                capture_output=True, text=True,
-                creationflags=0x08000000
+                [python_path, "-m", "pip", "install", "--upgrade", "pyinstaller"],
+                capture_output=True, text=True  # SIN creationflags para que pip funcione bien
             )
             _r2.destroy()
 
-            if install.returncode == 0:
+            # Verificar que quedó correctamente instalado
+            r_verify = subprocess.run(
+                [python_path, "-c",
+                 "import importlib.util; "
+                 "s=importlib.util.find_spec('PyInstaller'); "
+                 "print('ok' if s else 'missing')"],
+                capture_output=True, text=True
+            )
+            install_verified = r_verify.returncode == 0 and "ok" in r_verify.stdout
+
+            if install_verified:
                 _mb.showinfo("¡Listo!", "PyInstaller instalado correctamente.\nAlsoPlaying está listo para usar.")
+            elif install.returncode == 0:
+                _mb.showwarning("Aviso",
+                    "pip terminó sin errores pero PyInstaller no importa correctamente.\n"
+                    "Prueba manualmente en una terminal:\n  pip install pyinstaller")
+                _r.destroy()
+                sys.exit(0)
             else:
                 _mb.showerror("Error", f"No se pudo instalar PyInstaller:\n\n{install.stderr[-400:]}")
                 _r.destroy()
@@ -4170,7 +4645,20 @@ def check_environment():
 
 
 if __name__ == "__main__":
-    python_path = check_environment()
-    app = CreatorApp()
-    app.python_path = python_path  # guardar para usarlo al compilar
-    app.run()
+    import multiprocessing
+    multiprocessing.freeze_support()  # Evita bucle infinito de procesos en Windows (.exe PyInstaller)
+
+    _is_compiled_exe = getattr(sys, "frozen", False)
+    if _is_compiled_exe:
+        # Corremos como .exe compilado: Python ya está embebido, no hay que buscarlo.
+        # El usuario no necesita tener Python instalado para usar la app.
+        # Solo necesitará Python si quiere generar sus propios .exe desde la UI.
+        app = CreatorApp()
+        app.python_path = None  # se detectará bajo demanda en _build_exe
+        app.run()
+    else:
+        # Corremos desde el código fuente: necesitamos Python + PyInstaller
+        python_path = check_environment()
+        app = CreatorApp()
+        app.python_path = python_path  # guardar para usarlo al compilar
+        app.run()
