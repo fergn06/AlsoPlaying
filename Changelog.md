@@ -27,8 +27,19 @@
 
 ## [Versión en Español]
 
+*   **Icon Stability Fix**: Resolved a garbage collection issue in Tkinter that caused icons to disappear or "break" when interacting with the system grid or resizing windows.
+*   **Unique Instance Assets**: Implemented a content-based hashing system for temporary icon files, preventing asset conflicts when running multiple tracker instances simultaneously.
+*   **Code Cleanup**: Removed all legacy debug print statements and optimized empty lines for a cleaner, production-ready codebase.
+
+---
+
+## [Versión en Español]
+
 ### 🚀 Mejoras Principales y Nuevas Funciones
 
+*   **Estabilidad de Iconos Corregida**: Solucionado un problema de recolección de basura en Tkinter que causaba que los iconos desaparecieran o se "rompieran" al interactuar con la interfaz del sistema o cambiar el tamaño de las ventanas.
+*   **Activos de Instancia Únicos**: Implementado un sistema de hashing basado en contenido para los nombres de iconos temporales, evitando conflictos entre múltiples trackers abiertos a la vez.
+*   **Limpieza de Producción**: Eliminados todos los enunciados `print` de depuración y optimizadas las líneas de código para una ejecución más limpia y profesional.
 *   **Lógica "Plug & Play"**: La aplicación ahora es totalmente independiente. Ya no requiere que los usuarios tengan Python instalado para abrir la interfaz principal.
 *   **Configuración de Python Automatizada**: Se ha añadido un sistema de recuperación de "un solo clic". Si un usuario intenta generar un tracker y no tiene Python, la app se ofrece a descargar e instalar Python 3.13 automáticamente en segundo plano.
 *   **Búsqueda Inteligente de Python**: Implementada la función `find_all_pythons` que escanea el Registro de Windows y carpetas del sistema. Esto soluciona el error común donde Windows intenta abrir la Microsoft Store en lugar de usar un Python real.

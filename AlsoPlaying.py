@@ -3659,16 +3659,20 @@ class GameTrackerWidget:
             try:
                 icon_data = base64.b64decode(ICON_B64)
                 ext = ICON_EXT if ICON_EXT else ".ico"
-                tmp_icon = os.path.join(tempfile.gettempdir(), f"gt_icon{ext}")
-                with open(tmp_icon, "wb") as f:
-                    f.write(icon_data)
+                # Usar hash del contenido para evitar conflictos y asegurar actualización si cambia el icono
+                import hashlib
+                icon_hash = hashlib.md5(ICON_B64.encode()).hexdigest()
+                tmp_icon = os.path.join(tempfile.gettempdir(), f"gt_{icon_hash}{ext}")
+                
+                if not os.path.exists(tmp_icon):
+                    with open(tmp_icon, "wb") as f:
+                        f.write(icon_data)
+                
                 if ext == ".ico":
-                    # iconbitmap es el método nativo de Windows para .ico
                     self.root.iconbitmap(tmp_icon)
                 else:
-                    # Para PNG/JPG usar iconphoto
-                    img = tk.PhotoImage(file=tmp_icon)
-                    self.root.iconphoto(True, img)
+                    self._icon_img = tk.PhotoImage(file=tmp_icon)
+                    self.root.iconphoto(True, self._icon_img)
             except Exception:
                 pass
 
@@ -4089,6 +4093,8 @@ class CreatorApp:
                     )
             except Exception as e:
                 if "RuntimeError" in str(e): raise e
+
+            creation_flags = 0x08000000 if sys.platform == "win32" else 0
 
             # ── 4a. Auto-detectar / instalar PyInstaller ──────────────────────
             def _pi_installed():
