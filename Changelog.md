@@ -22,6 +22,11 @@
     *   **Proactive Validation**: The app now pre-checks if the detected Python version supports graphical interfaces before starting the build.
 *   **Professional Repository Setup**:
     *   Configured a standard `.gitignore` to keep the project clean of temporary build files and environment subproducts.
+*   **Ultimate Crash Protection (New)**:
+    *   **Network Resilience**: Added specific error capture for offline scenarios (`getaddrinfo failed`) during the automated Python download gracefully prompting the user to check their connection.
+    *   **Timeout Guards**: Enforced strict timeouts on all background processes (Pip, PyInstaller, Python setup) to prevent the UI from freezing indefinitely.
+    *   **Generated Executable Hardening**: The `.exe` widgets created by users now feature their own self-contained exception handling for geometry generation, screen limits, and dragging events, ensuring they never crash silently on any monitor setup.
+    *   **Global Catch-All**: Inserted a root-level crash dialogue system that intercepts any fatal startup errors, providing debug information rather than a silent failure.
 
 ---
 
@@ -58,3 +63,8 @@
     *   **Validación Proactiva**: La app ahora comprueba si el Python detectado soporta interfaces antes de iniciar la creación del archivo.
 *   **Configuración Profesional del Proyecto**:
     *   Configurado un archivo `.gitignore` profesional para mantener el repositorio limpio de archivos temporales de compilación y subproductos del entorno.
+*   **Protección Definitiva contra Cuelgues (Nuevo)**:
+    *   **Resiliencia de Red**: Añadida captura de errores específica para escenarios sin conexión (`getaddrinfo failed`) durante la descarga automática de Python, avisando claramente al usuario.
+    *   **Bloqueos por Tiempo (Timeouts)**: Implementados límites de tiempo estrictos en todos los procesos en segundo plano (Pip, PyInstaller, instalador de Python) para evitar que la interfaz se congele indefinidamente.
+    *   **Blindaje de Ejecutables Generados**: Los widgets `.exe` creados por los usuarios ahora cuentan con su propio sistema de captura de excepciones para la generación geométrica, límites de pantalla y eventos de arrastre con el ratón asegurando que nunca se cierren de golpe.
+    *   **Red de Seguridad Global**: Insertado un sistema de diálogo de errores a nivel de raíz que intercepta cualquier fallo fatal de arranque, mostrando información útil en lugar de dejar que la app no abra en silencio.

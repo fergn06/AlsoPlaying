@@ -3647,96 +3647,126 @@ ICON_EXT   = "{{ICON_EXT}}"
 
 class GameTrackerWidget:
     def __init__(self):
-        self.root = tk.Tk()
-        self.root.title(f"{GAME_NAME} - {PLATFORM}")
-        self.root.overrideredirect(True)
-        self.root.attributes("-topmost", True)
-        self.root.configure(bg="#1a1a2e")
-        self.root.resizable(False, False)
+        try:
+            self.root = tk.Tk()
+            self.root.title(f"{GAME_NAME} - {PLATFORM}")
+            self.root.overrideredirect(True)
+            self.root.attributes("-topmost", True)
+            self.root.configure(bg="#1a1a2e")
+            self.root.resizable(False, False)
 
-        # Aplicar icono si existe
-        if ICON_B64:
+            # Aplicar icono si existe
+            if ICON_B64:
+                try:
+                    icon_data = base64.b64decode(ICON_B64)
+                    ext = ICON_EXT if ICON_EXT else ".ico"
+                    # Usar hash del contenido para evitar conflictos y asegurar actualización si cambia el icono
+                    import hashlib
+                    icon_hash = hashlib.md5(ICON_B64.encode()).hexdigest()
+                    tmp_icon = os.path.join(tempfile.gettempdir(), f"gt_{icon_hash}{ext}")
+                    
+                    if not os.path.exists(tmp_icon):
+                        with open(tmp_icon, "wb") as f:
+                            f.write(icon_data)
+                    
+                    if ext == ".ico":
+                        self.root.iconbitmap(tmp_icon)
+                    else:
+                        self._icon_img = tk.PhotoImage(file=tmp_icon)
+                        self.root.iconphoto(True, self._icon_img)
+                except Exception:
+                    pass
+
             try:
-                icon_data = base64.b64decode(ICON_B64)
-                ext = ICON_EXT if ICON_EXT else ".ico"
-                # Usar hash del contenido para evitar conflictos y asegurar actualización si cambia el icono
-                import hashlib
-                icon_hash = hashlib.md5(ICON_B64.encode()).hexdigest()
-                tmp_icon = os.path.join(tempfile.gettempdir(), f"gt_{icon_hash}{ext}")
-                
-                if not os.path.exists(tmp_icon):
-                    with open(tmp_icon, "wb") as f:
-                        f.write(icon_data)
-                
-                if ext == ".ico":
-                    self.root.iconbitmap(tmp_icon)
-                else:
-                    self._icon_img = tk.PhotoImage(file=tmp_icon)
-                    self.root.iconphoto(True, self._icon_img)
+                win_w, win_h = 260, 120
+                sw = self.root.winfo_screenwidth()
+                sh = self.root.winfo_screenheight()
+                x  = sw - win_w - 20
+                y  = sh - win_h - 60
+                self.root.geometry(f"{win_w}x{win_h}+{x}+{y}")
             except Exception:
-                pass
+                # Fallback genérico si falla detección de pantalla
+                self.root.geometry("260x120+100+100")
+        except Exception:
+            import sys
+            sys.exit(1)
 
-        win_w, win_h = 260, 120
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
-        x  = sw - win_w - 20
-        y  = sh - win_h - 60
-        self.root.geometry(f"{win_w}x{win_h}+{x}+{y}")
+        try:
+            self.root.bind("<ButtonPress-1>", self._drag_start)
+            self.root.bind("<B1-Motion>",     self._drag_move)
 
-        self.root.bind("<ButtonPress-1>", self._drag_start)
-        self.root.bind("<B1-Motion>",     self._drag_move)
+            outer = tk.Frame(self.root, bg="#e94560", padx=2, pady=2)
+            outer.pack(fill="both", expand=True)
+            inner = tk.Frame(outer, bg="#1a1a2e", padx=12, pady=8)
+            inner.pack(fill="both", expand=True)
 
-        outer = tk.Frame(self.root, bg="#e94560", padx=2, pady=2)
-        outer.pack(fill="both", expand=True)
-        inner = tk.Frame(outer, bg="#1a1a2e", padx=12, pady=8)
-        inner.pack(fill="both", expand=True)
+            tk.Label(inner, text=GAME_NAME,
+                     font=("Segoe UI", 11, "bold"),
+                     fg="#ffffff", bg="#1a1a2e").pack(fill="x")
 
-        tk.Label(inner, text=GAME_NAME,
-                 font=("Segoe UI", 11, "bold"),
-                 fg="#ffffff", bg="#1a1a2e").pack(fill="x")
+            tk.Label(inner, text=PLATFORM,
+                     font=("Segoe UI", 8),
+                     fg="#aaaacc", bg="#1a1a2e").pack(fill="x")
 
-        tk.Label(inner, text=PLATFORM,
-                 font=("Segoe UI", 8),
-                 fg="#aaaacc", bg="#1a1a2e").pack(fill="x")
+            self.time_lbl = tk.Label(inner, text="00:00:00",
+                                      font=("Consolas", 14, "bold"),
+                                      fg="#e94560", bg="#1a1a2e")
+            self.time_lbl.pack(fill="x", pady=(2, 0))
 
-        self.time_lbl = tk.Label(inner, text="00:00:00",
-                                  font=("Consolas", 14, "bold"),
-                                  fg="#e94560", bg="#1a1a2e")
-        self.time_lbl.pack(fill="x", pady=(2, 0))
+            tk.Button(inner, text="■  CERRAR",
+                      font=("Segoe UI", 8, "bold"),
+                      fg="#ffffff", bg="#e94560",
+                      activebackground="#c73652", activeforeground="#ffffff",
+                      relief="flat", cursor="hand2",
+                      pady=5,
+                      command=self.root.destroy).pack(fill="x", pady=(8, 0))
 
-        tk.Button(inner, text="■  CERRAR",
-                  font=("Segoe UI", 8, "bold"),
-                  fg="#ffffff", bg="#e94560",
-                  activebackground="#c73652", activeforeground="#ffffff",
-                  relief="flat", cursor="hand2",
-                  pady=5,
-                  command=self.root.destroy).pack(fill="x", pady=(8, 0))
-
-        self.start_time = time.time()
-        self._tick()
+            self.start_time = time.time()
+            self._tick()
+        except Exception:
+            pass
 
     def _drag_start(self, e):
-        self._ox, self._oy = e.x, e.y
+        try:
+            self._ox, self._oy = e.x, e.y
+        except Exception:
+            pass
 
     def _drag_move(self, e):
-        x = self.root.winfo_x() + e.x - self._ox
-        y = self.root.winfo_y() + e.y - self._oy
-        self.root.geometry(f"+{x}+{y}")
+        try:
+            x = self.root.winfo_x() + e.x - self._ox
+            y = self.root.winfo_y() + e.y - self._oy
+            self.root.geometry(f"+{x}+{y}")
+        except Exception:
+            pass
 
     def _tick(self):
-        elapsed = int(time.time() - self.start_time)
-        h, rem  = divmod(elapsed, 3600)
-        m, s    = divmod(rem, 60)
-        self.time_lbl.config(text=f"{h:02d}:{m:02d}:{s:02d}")
-        self.root.after(1000, self._tick)
+        try:
+            if not self.root.winfo_exists():
+                return
+            elapsed = int(time.time() - self.start_time)
+            h, rem  = divmod(elapsed, 3600)
+            m, s    = divmod(rem, 60)
+            self.time_lbl.config(text=f"{h:02d}:{m:02d}:{s:02d}")
+            self.root.after(1000, self._tick)
+        except Exception:
+            pass
 
     def run(self):
-        self.root.mainloop()
+        try:
+            self.root.mainloop()
+        except KeyboardInterrupt:
+            pass
+        except Exception:
+            pass
 
 if __name__ == "__main__":
-    import multiprocessing
-    multiprocessing.freeze_support()
-    GameTrackerWidget().run()
+    try:
+        import multiprocessing
+        multiprocessing.freeze_support()
+        GameTrackerWidget().run()
+    except Exception:
+        pass
 """
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -3779,24 +3809,59 @@ class CreatorApp:
             pass
 
     def __init__(self):
-        self.root = tk.Tk()
-        self.root.title("AlsoPlaying")
-        self.root.configure(bg=BG)
-        self.root.resizable(False, False)
+        try:
+            self.root = tk.Tk()
+            self.root.title("AlsoPlaying")
+            self.root.configure(bg=BG)
+            self.root.resizable(False, False)
+        except Exception as e:
+            import tkinter.messagebox as _m
+            try:
+                _m.showerror("Error crítico", f"No se pudo crear la ventana principal:\n{e}")
+            except Exception:
+                pass
+            sys.exit(1)
 
         self.custom_icon_path = None   # None = usar icono por defecto
+        self.python_path = None        # Se asignará externamente o se detectará bajo demanda
 
         # Cargar última ruta de destino guardada (default: Escritorio)
-        cfg = self._load_cfg()
-        saved_dest = cfg.get("dest_folder", "")
-        self.dest_folder = saved_dest if (saved_dest and os.path.isdir(saved_dest)) else DESKTOP
+        try:
+            cfg = self._load_cfg()
+            saved_dest = cfg.get("dest_folder", "")
+            self.dest_folder = saved_dest if (saved_dest and os.path.isdir(saved_dest)) else DESKTOP
+        except Exception:
+            self.dest_folder = DESKTOP
 
-        w, h = 420, 590
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
-        self.root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
+        # Asegurarse de que el Escritorio existe como fallback
+        try:
+            if not os.path.isdir(self.dest_folder):
+                self.dest_folder = os.path.expanduser("~")
+        except Exception:
+            self.dest_folder = os.path.expanduser("~")
 
-        self._build_ui()
+        try:
+            w, h = 420, 590
+            sw = self.root.winfo_screenwidth()
+            sh = self.root.winfo_screenheight()
+            x = max(0, (sw - w) // 2)
+            y = max(0, (sh - h) // 2)
+            self.root.geometry(f"{w}x{h}+{x}+{y}")
+        except Exception:
+            try:
+                self.root.geometry("420x590")
+            except Exception:
+                pass
+
+        try:
+            self._build_ui()
+        except Exception as e:
+            try:
+                messagebox.showerror("Error al cargar la interfaz",
+                    f"Ocurrió un error al construir la interfaz:\n{e}\n\n"
+                    "La aplicación intentará iniciarse de todas formas.")
+            except Exception:
+                pass
 
     def _build_ui(self):
         # Aplicar icono predeterminado a la ventana del creador
@@ -3952,52 +4017,86 @@ class CreatorApp:
             self.icon_path_var.set("Ningún archivo seleccionado")
 
     def _pick_icon(self):
-        path = filedialog.askopenfilename(
-            title="Selecciona un icono",
-            filetypes=[
-                ("Imágenes", "*.ico *.png *.jpg *.jpeg"),
-                ("Iconos ICO", "*.ico"),
-                ("Todos los archivos", "*.*")
-            ]
-        )
-        if path:
-            self.custom_icon_path = path
-            self.icon_path_var.set(os.path.basename(path))
+        try:
+            path = filedialog.askopenfilename(
+                title="Selecciona un icono",
+                filetypes=[
+                    ("Imágenes", "*.ico *.png *.jpg *.jpeg"),
+                    ("Iconos ICO", "*.ico"),
+                    ("Todos los archivos", "*.*")
+                ]
+            )
+            if path:
+                if not os.path.exists(path):
+                    messagebox.showerror("Error", "El archivo seleccionado no existe.")
+                    return
+                self.custom_icon_path = path
+                self.icon_path_var.set(os.path.basename(path))
+        except Exception as e:
+            messagebox.showerror("Error al seleccionar icono", str(e))
 
     def _pick_dest(self):
-        folder = filedialog.askdirectory(
-            title="Selecciona la carpeta de destino",
-            initialdir=self.dest_folder
-        )
-        if folder:
-            self.dest_folder = folder
-            self.dest_var.set(folder)
-            # Guardar en config
-            cfg = self._load_cfg()
-            cfg["dest_folder"] = folder
-            self._save_cfg(cfg)
+        try:
+            folder = filedialog.askdirectory(
+                title="Selecciona la carpeta de destino",
+                initialdir=self.dest_folder
+            )
+            if folder:
+                if not os.path.isdir(folder):
+                    messagebox.showerror("Error", "La carpeta seleccionada no es válida.")
+                    return
+                self.dest_folder = folder
+                self.dest_var.set(folder)
+                # Guardar en config
+                try:
+                    cfg = self._load_cfg()
+                    cfg["dest_folder"] = folder
+                    self._save_cfg(cfg)
+                except Exception:
+                    pass  # No crítico si no se guarda la config
+        except Exception as e:
+            messagebox.showerror("Error al seleccionar carpeta", str(e))
 
     # ── Generar ───────────────────────────────────────────────────────────────
     def _on_generate(self):
-        game = self.name_var.get().strip()
-        plat = self.plat_var.get().strip()
+        try:
+            game = self.name_var.get().strip()
+            plat = self.plat_var.get().strip()
 
-        if not game or not plat:
-            messagebox.showwarning("Faltan datos",
-                                   "Rellena el nombre del juego y la plataforma.")
-            return
+            if not game:
+                messagebox.showwarning("Faltan datos", "Escribe el nombre del juego.")
+                return
+            if not plat:
+                messagebox.showwarning("Faltan datos", "Escribe la plataforma.")
+                return
+            if len(game) > 100 or len(plat) > 100:
+                messagebox.showwarning("Datos inválidos", "El nombre del juego o la plataforma son demasiado largos (máx. 100 caracteres).")
+                return
 
-        if self.icon_mode.get() == "custom" and not self.custom_icon_path:
-            messagebox.showwarning("Sin icono",
-                                   "Selecciona un archivo de icono o usa el predeterminado.")
-            return
+            if self.icon_mode.get() == "custom" and not self.custom_icon_path:
+                messagebox.showwarning("Sin icono",
+                                       "Selecciona un archivo de icono o usa el predeterminado.")
+                return
 
-        self.gen_btn.config(state="disabled")
-        # Insertar la barra justo antes del status label
-        self._set_status("Compilando… puede tardar un minuto ⏳")
+            if self.icon_mode.get() == "custom" and self.custom_icon_path:
+                if not os.path.exists(self.custom_icon_path):
+                    messagebox.showerror("Icono no encontrado",
+                                         f"El archivo de icono ya no existe:\n{self.custom_icon_path}\n\nSelecciona uno nuevo.")
+                    self.custom_icon_path = None
+                    self.icon_path_var.set("Ningún archivo seleccionado")
+                    return
 
-        threading.Thread(target=self._build_exe,
-                         args=(game, plat), daemon=True).start()
+            self.gen_btn.config(state="disabled")
+            self._set_status("Compilando… puede tardar un minuto ⏳")
+
+            threading.Thread(target=self._build_exe,
+                             args=(game, plat), daemon=True).start()
+        except Exception as e:
+            messagebox.showerror("Error inesperado", f"No se pudo iniciar la compilación:\n{e}")
+            try:
+                self.gen_btn.config(state="normal")
+            except Exception:
+                pass
 
     def _build_exe(self, game: str, plat: str):
         tmp_dir = tempfile.mkdtemp(prefix="gtracker_")
@@ -4083,16 +4182,21 @@ class CreatorApp:
             # Verificar que el Python elegido tiene soporte para tkinter (interfaz gráfica)
             # para evitar que el tracker .exe salga sin interfaz (error "No module named tkinter")
             try:
-                r_tk = subprocess.run([python_exe, "-c", "import tkinter"], 
-                                     capture_output=True, creationflags=0x08000000)
+                r_tk = subprocess.run([python_exe, "-c", "import tkinter"],
+                                     capture_output=True, creationflags=0x08000000,
+                                     timeout=10)
                 if r_tk.returncode != 0:
                     raise RuntimeError(
                         "El Python detectado no tiene soporte para interfaces (tkinter).\n\n"
                         "Te recomiendo desinstalar Python y dejar que AlsoPlaying lo instale "
                         "automáticamente para asegurar compatibilidad total."
                     )
-            except Exception as e:
-                if "RuntimeError" in str(e): raise e
+            except subprocess.TimeoutExpired:
+                pass  # No crítico; continuamos igualmente
+            except RuntimeError:
+                raise
+            except Exception:
+                pass  # No bloqueamos la ejecución por este chequeo
 
             creation_flags = 0x08000000 if sys.platform == "win32" else 0
 
@@ -4101,26 +4205,37 @@ class CreatorApp:
                 """True si PyInstaller está disponible para python_exe.
                 Usa find_spec en vez de import para no lanzar ModuleNotFoundError
                 (el debugger de VS Code pausa en excepciones de procesos hijo)."""
-                r = subprocess.run(
-                    [python_exe, "-c",
-                     "import importlib.util; "
-                     "s=importlib.util.find_spec('PyInstaller'); "
-                     "print('ok' if s else 'missing')"],
-                    capture_output=True, text=True, creationflags=creation_flags
-                )
-                return r.returncode == 0 and "ok" in r.stdout
+                try:
+                    r = subprocess.run(
+                        [python_exe, "-c",
+                         "import importlib.util; "
+                         "s=importlib.util.find_spec('PyInstaller'); "
+                         "print('ok' if s else 'missing')"],
+                        capture_output=True, text=True, creationflags=creation_flags,
+                        timeout=15
+                    )
+                    return r.returncode == 0 and "ok" in (r.stdout or "")
+                except Exception:
+                    return False
 
             if not _pi_installed():
                 self.root.after(0, self._set_status,
                                 "PyInstaller no encontrado, instalando… ⏳")
-                install = subprocess.run(
-                    [python_exe, "-m", "pip", "install", "--upgrade", "pyinstaller"],
-                    capture_output=True, text=True, creationflags=creation_flags
-                )
+                try:
+                    install = subprocess.run(
+                        [python_exe, "-m", "pip", "install", "--upgrade", "pyinstaller"],
+                        capture_output=True, text=True, creationflags=creation_flags,
+                        timeout=300
+                    )
+                except subprocess.TimeoutExpired:
+                    raise RuntimeError(
+                        "La instalación de PyInstaller tardó demasiado.\n"
+                        "Instálalo manualmente con:\n  pip install pyinstaller"
+                    )
                 if install.returncode != 0:
                     raise RuntimeError(
                         f"No se pudo instalar PyInstaller automáticamente:\n"
-                        f"{install.stderr[-600:]}\n\n"
+                        f"{(install.stderr or '')[-600:]}\n\n"
                         f"Instálalo manualmente con:\n  pip install pyinstaller"
                     )
                 # Verificar que quedó bien instalado
@@ -4154,8 +4269,12 @@ class CreatorApp:
 
             cmd.append(script)
 
-            result = subprocess.run(cmd, capture_output=True, text=True,
-                                    creationflags=creation_flags)
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True,
+                                        creationflags=creation_flags,
+                                        timeout=600)  # 10 min máximo para compilar
+            except subprocess.TimeoutExpired:
+                raise RuntimeError("La compilación tardó demasiado (>10 min). Prueba con un nombre más corto o reinicia la app.")
             build_out = (result.stdout or "") + (result.stderr or "")
 
             # Detectar fallo aunque returncode sea 0 (pasa en Windows con CREATE_NO_WINDOW)
@@ -4189,45 +4308,94 @@ class CreatorApp:
 
             # 6. Mover a la carpeta de destino elegida
             dest_dir = getattr(self, "dest_folder", DESKTOP)
-            if not os.path.isdir(dest_dir):
+            if not dest_dir or not os.path.isdir(dest_dir):
+                dest_dir = DESKTOP
+            # Intentar crear el directorio destino si no existe
+            try:
+                os.makedirs(dest_dir, exist_ok=True)
+            except Exception:
                 dest_dir = DESKTOP
             dest = os.path.join(dest_dir, exe_name + ".exe")
-            shutil.move(built, dest)
+            # Eliminar .exe antiguo si ya existe, para evitar errores de permisos
+            try:
+                if os.path.exists(dest):
+                    os.remove(dest)
+            except Exception:
+                pass
+            try:
+                shutil.move(built, dest)
+            except Exception as move_err:
+                # Si falla el move, intentar copy+delete
+                try:
+                    shutil.copy2(built, dest)
+                except Exception:
+                    raise RuntimeError(f"No se pudo mover el .exe generado al destino:\n{dest}\n\nError: {move_err}")
 
             # 7. Limpiar todo
-            shutil.rmtree(tmp_dir, ignore_errors=True)
+            try:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+            except Exception:
+                pass
 
             self.root.after(0, self._on_success, dest)
 
         except Exception as e:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
-            self.root.after(0, self._on_error, str(e))
+            try:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+            except Exception:
+                pass
+            try:
+                self.root.after(0, self._on_error, str(e))
+            except Exception:
+                pass
 
     def _on_success(self, dest: str):
-        self.gen_btn.config(state="normal")
-        self._set_status("✅  .exe generado en el Escritorio", color="#4caf50")
-        messagebox.showinfo("¡Listo!",
-                            f"Archivo generado:\n{dest}\n\n"
-                            "Añádelo a Steam como 'Juego que no es de Steam'.")
+        try:
+            self.gen_btn.config(state="normal")
+            folder = os.path.dirname(dest)
+            self._set_status(f"✅  .exe guardado en: {folder}", color="#4caf50")
+            messagebox.showinfo("¡Listo!",
+                                f"Archivo generado:\n{dest}\n\n"
+                                "Añádelo a Steam como 'Juego que no es de Steam'.")
+        except Exception:
+            pass
 
     def _on_error(self, err: str):
-        self.gen_btn.config(state="normal")
-        self._set_status("❌  Error al generar", color=ACCENT)
-        messagebox.showerror("Error al compilar",
-                             f"PyInstaller falló:\n\n{err}\n\n"
-                             "Instálalo con:\n  pip install pyinstaller")
+        try:
+            self.gen_btn.config(state="normal")
+            self._set_status("❌  Error al generar", color=ACCENT)
+            messagebox.showerror("Error al compilar",
+                                 f"Ocurrió un error:\n\n{err}\n\n"
+                                 "Si el problema persiste, intenta instalar PyInstaller manualmente:\n  pip install pyinstaller")
+        except Exception:
+            pass
 
     def _show_info(self):
-        messagebox.showinfo(
-            "AlsoPlaying V1.0 - ES",
-            "Creado por Fernando Guerrero Nuez\n\nhttps://fernandoguerreronuez.com")
+        try:
+            messagebox.showinfo(
+                "AlsoPlaying V1.0 - ES",
+                "Creado por Fernando Guerrero Nuez\n\nhttps://fernandoguerreronuez.com")
+        except Exception:
+            pass
 
     def _set_status(self, msg: str, color: str = FG_DIM):
-        self.status_var.set(msg)
-        self.status_lbl.config(fg=color)
+        try:
+            self.status_var.set(str(msg))
+            self.status_lbl.config(fg=color)
+        except Exception:
+            pass # No crítico si el label no se puede actualizar
 
     def run(self):
-        self.root.mainloop()
+        try:
+            self.root.mainloop()
+        except KeyboardInterrupt:
+            pass  # Cierre limpio con Ctrl+C
+        except Exception as e:
+            try:
+                messagebox.showerror("Error inesperado",
+                    f"La aplicación cerró con un error inesperado:\n{e}")
+            except Exception:
+                pass
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -4283,20 +4451,49 @@ def _install_python_automated(root):
                 p_var.set(f"{min(100, perc)}% - {blocks*size//1048576}MB de {total//1048576}MB")
                 root.update()
 
+        # Eliminar si ya existe un instalador corrupto previo
+        if os.path.exists(installer):
+            try: os.remove(installer)
+            except Exception: pass
+
         urllib.request.urlretrieve(url, installer, _hook)
         
+        # Validar que el archivo existe y tiene un tamaño razonable (>20MB)
+        if not os.path.exists(installer) or os.path.getsize(installer) < 10*1024*1024:
+            raise RuntimeError("La descarga parece haber fallado (archivo incompleto).")
+
         lbl.config(text="Instalando Python... (paciencia)")
         p_var.set("Ejecutando instalador silencioso...")
         root.update()
         
         # Ejecutar instalador silencioso
         # PrependPath=1 es CRITICO para que detecte python en el futuro
-        subprocess.run([installer, "/quiet", "PrependPath=1", "Include_test=0"], check=True)
+        try:
+            subprocess.run([installer, "/quiet", "PrependPath=1", "Include_test=0"], check=True, timeout=600)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("El instalador tardó demasiado tiempo en responder.")
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"El instalador de Python devolvió un error (Código {e.returncode}).")
         
         messagebox.showinfo("¡Listo!", "Python 3.13 se ha instalado correctamente.\n\nLa aplicación se cerrará. Ábrela de nuevo para empezar.")
         sys.exit(0)
     except Exception as e:
-        messagebox.showerror("Error de instalación", f"No se pudo completar la instalación automática:\n\n{str(e)}\n\nIntenta instalarlo manualmente descargando el archivo desde python.org.")
+        import traceback
+        error_detail = traceback.format_exc()
+        print(error_detail) # Para depuración en consola si está disponible
+        
+        error_msg = str(e)
+        if "getaddrinfo failed" in error_msg or "No such host is known" in error_msg:
+            messagebox.showerror("Error de red",
+                                 "No hay conexión a Internet o el servidor no responde.\n\n"
+                                 "Para instalar Python automáticamente, AlsoPlaying necesita descargar "
+                                 "un archivo desde python.org.\n\n"
+                                 "Por favor, revisa tu conexión a Internet e inténtalo de nuevo, "
+                                 "o descárgalo manualmente.")
+        else:
+            messagebox.showerror("Error de instalación", 
+                                 f"No se pudo completar la instalación automática:\n\n{error_msg}\n\n"
+                                 "Intenta instalarlo manualmente descargando el archivo desde python.org.")
         sys.exit(0)
 
 def _select_python_dialog(pythons):
@@ -4422,31 +4619,38 @@ def find_all_pythons():
                     pk = winreg.OpenKey(k, ver_key_name + r"\InstallPath")
                     path = winreg.QueryValueEx(pk, "ExecutablePath")[0]
                     if os.path.exists(path) and "WindowsApps" not in path:
-                        parts = ver_key_name.split(".")
-                        maj = int(parts[0]) if len(parts) > 0 else 0
-                        min_v = int(parts[1]) if len(parts) > 1 else 0
-                        results.append((os.path.normpath(path), maj, min_v))
+                        try:
+                            parts = ver_key_name.split(".")
+                            maj = int(parts[0]) if len(parts) > 0 else 0
+                            min_v = int(parts[1]) if len(parts) > 1 else 0
+                            results.append((os.path.normpath(path), maj, min_v))
+                        except (ValueError, IndexError):
+                            results.append((os.path.normpath(path), 0, 0))
                     i += 1
                 except (OSError, ValueError):
                     break
+            winreg.CloseKey(k)
         except Exception:
             pass
 
     # 3. Buscar con 'where python'
     try:
-        w = subprocess.run(["where", "python"], capture_output=True, text=True, creationflags=0x08000000)
-        for p in w.stdout.splitlines():
+        w = subprocess.run(["where", "python"], capture_output=True, text=True, creationflags=0x08000000, timeout=5)
+        for p in (w.stdout or "").splitlines():
             if os.path.exists(p) and "WindowsApps" not in p:
                 results.append((os.path.normpath(p), 0, 0))
     except Exception: pass
 
     # 4. Rutas comunes
-    for pat in [
-        r"C:\Python3*\python.exe",
-        r"C:\Users\*\AppData\Local\Programs\Python\Python3*\python.exe",
-    ]:
-        for p in glob.glob(pat):
-            results.append((os.path.normpath(p), 0, 0))
+    try:
+        common_paths = [
+            r"C:\Python3*\python.exe",
+            r"C:\Users\*\AppData\Local\Programs\Python\Python3*\python.exe",
+        ]
+        for pat in common_paths:
+            for p in glob.glob(pat):
+                results.append((os.path.normpath(p), 0, 0))
+    except Exception: pass
 
     # 5. Filtrar, validar versiones y eliminar duplicados
     valid_pythons = []
@@ -4457,110 +4661,73 @@ def find_all_pythons():
         if path_key in seen_paths: continue
         seen_paths.add(path_key)
         
-        if not os.path.exists(path): continue
+        try:
+            if not os.path.exists(path): continue
 
-        # Si no sabemos la versión, intentamos obtenerla rápidamente
-        if maj == 0:
-            try:
-                # Usamos una llamada muy corta para no ralentizar la búsqueda
-                r = subprocess.run([path, "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"], 
-                                 capture_output=True, text=True, creationflags=0x08000000, timeout=2)
-                if r.returncode == 0:
-                    parts = r.stdout.strip().split(".")
-                    maj, min_v = int(parts[0]), int(parts[1])
-            except Exception:
-                continue
-        
-        # Aceptamos 3.10 o superior para compilar (aunque 3.13 es el recomendado)
-        if maj == 3 and min_v >= 10:
-            valid_pythons.append((path, (maj, min_v)))
+            # Si no sabemos la versión, intentamos obtenerla rápidamente
+            if maj == 0:
+                try:
+                    # Usamos una llamada muy corta para no ralentizar la búsqueda
+                    r = subprocess.run([path, "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"], 
+                                     capture_output=True, text=True, creationflags=0x08000000, timeout=3)
+                    if r.returncode == 0:
+                        parts = r.stdout.strip().split(".")
+                        maj, min_v = int(parts[0]), int(parts[1])
+                except Exception:
+                    continue
+            
+            # Aceptamos 3.10 o superior para compilar (aunque 3.13 es el recomendado)
+            if maj == 3 and min_v >= 10:
+                valid_pythons.append((path, (maj, min_v)))
+        except Exception:
+            continue
 
     # Ordenar por versión (lo más nuevo primero)
-    valid_pythons.sort(key=lambda x: x[1], reverse=True)
+    try:
+        valid_pythons.sort(key=lambda x: x[1], reverse=True)
+    except Exception: pass
+    
     return valid_pythons
 
 def check_environment():
-    import subprocess, winreg, glob, webbrowser
-
-    all_pythons = find_all_pythons()
-    
-    python_path = None
-    python_ver = "0.0"
-
-    if not all_pythons:
-        python_path = None
-    elif len(all_pythons) == 1:
-        python_path, (maj, min_v) = all_pythons[0]
-        python_ver = f"{maj}.{min_v}"
-    else:
-        # Preguntar al usuario
-        python_path = _select_python_dialog(all_pythons)
-        if not python_path:
-            sys.exit(0) # Cerrar si cancela
-        
-        # Encontrar la versión del elegido
-        for p, v in all_pythons:
-            if p == python_path:
-                python_ver = f"{v[0]}.{v[1]}"
-                break
-
-
-
-    # ── 1. Comprobar Python ───────────────────────────────────────────────────
-    if not python_path:
-        import tkinter as _tk
-        from tkinter import messagebox as _mb
-        _r = _tk.Tk(); _r.withdraw()
-        _apply_main_icon(_r)
-        
-        res = _mb.askyesno(
-            "Python no detectado",
-            "AlsoPlaying necesita Python 3.13 para funcionar profesionalmente.\n\n"
-            "¿Quieres que lo descargue e instale automáticamente por ti?\n"
-            "(No requiere ir a ninguna web, se hace solo)",
-            icon="question"
-        )
-        if res:
-            _install_python_automated(_r)
-        
-        resp = _mb.askyesno(
-            "Alternativa manual",
-            "¿Prefieres abrir la página de descarga para hacerlo tú mismo?",
-            icon="warning"
-        )
-        if resp:
-            webbrowser.open("https://www.python.org/downloads/release/python-3130/")
-        
-        _mb.showinfo(
-            "Instrucciones",
-            "Descarga e instala Python 3.13 desde python.org.\n\n"
-            "⚠️ Durante la instalación marca la opción:\n"
-            '\"Add Python to PATH\"\n\n'
-            "Después vuelve a abrir AlsoPlaying."
-        )
-        _r.destroy()
-        sys.exit(0)
-
-
-    # ── 2. Comprobar versión mínima (3.13) ────────────────────────────────────
     try:
-        result = subprocess.run(
-            [python_path, "--version"],
-            capture_output=True, text=True
-        )
-        ver_str = result.stdout.strip() or result.stderr.strip()
-        # Extraer número: "Python 3.13.1" → (3, 13)
-        parts = ver_str.replace("Python", "").strip().split(".")
-        major, minor = int(parts[0]), int(parts[1])
-        if (major, minor) < (3, 13):
+        import subprocess, winreg, glob, webbrowser
+
+        all_pythons = find_all_pythons()
+        
+        python_path = None
+        python_ver = "0.0"
+
+        if not all_pythons:
+            python_path = None
+        elif len(all_pythons) == 1:
+            python_path, (maj, min_v) = all_pythons[0]
+            python_ver = f"{maj}.{min_v}"
+        else:
+            # Preguntar al usuario
+            python_path = _select_python_dialog(all_pythons)
+            if not python_path:
+                sys.exit(0) # Cerrar si cancela
+            
+            # Encontrar la versión del elegido
+            for p, v in all_pythons:
+                if p == python_path:
+                    python_ver = f"{v[0]}.{v[1]}"
+                    break
+
+        # ── 1. Comprobar Python ───────────────────────────────────────────────────
+        if not python_path:
             import tkinter as _tk
             from tkinter import messagebox as _mb
             _r = _tk.Tk(); _r.withdraw()
+            _apply_main_icon(_r)
+            
             res = _mb.askyesno(
-                "Python desactualizado",
-                f"Se encontró Python {ver_str} pero AlsoPlaying necesita Python 3.13 o superior.\n\n"
-                "¿Quieres que descargue e instale la versión 3.13 automáticamente?",
-                icon="warning"
+                "Python no detectado",
+                "AlsoPlaying necesita Python 3.13 para funcionar profesionalmente.\n\n"
+                "¿Quieres que lo descargue e instale automáticamente por ti?\n"
+                "(No requiere ir a ninguna web, se hace solo)",
+                icon="question"
             )
             if res:
                 _install_python_automated(_r)
@@ -4572,101 +4739,197 @@ def check_environment():
             )
             if resp:
                 webbrowser.open("https://www.python.org/downloads/release/python-3130/")
+            
+            _mb.showinfo(
+                "Instrucciones",
+                "Descarga e instala Python 3.13 desde python.org.\n\n"
+                "⚠️ Durante la instalación marca la opción:\n"
+                '\"Add Python to PATH\"\n\n'
+                "Después vuelve a abrir AlsoPlaying."
+            )
             _r.destroy()
             sys.exit(0)
-    except Exception:
-        pass
 
-    # ── 3. Comprobar / instalar PyInstaller ───────────────────────────────────
-    try:
-        # "import PyInstaller" es más fiable que "--version" en Windows
-        # porque con CREATE_NO_WINDOW el returncode puede ser 0 aunque no exista.
-        r_pi = subprocess.run(
-            [python_path, "-c",
-             "import importlib.util; "
-             "s=importlib.util.find_spec('PyInstaller'); "
-             "print('ok' if s else 'missing')"],
-            capture_output=True, text=True  # SIN creationflags para fiabilidad
-        )
-        pyinstaller_ok = r_pi.returncode == 0 and "ok" in r_pi.stdout
-    except Exception:
-        pyinstaller_ok = False
-
-    if not pyinstaller_ok:
-        import tkinter as _tk
-        from tkinter import messagebox as _mb
-        _r = _tk.Tk(); _r.withdraw()
-        _apply_main_icon(_r)
-        resp = _mb.askyesno(
-            "Paso 2: Instalar PyInstaller",
-            "Python se detectó correctamente, pero falta un complemento llamado 'PyInstaller' para crear los .exe.\n\n"
-            "¿Quieres instalarlo ahora automáticamente? (Tardará unos segundos)",
-            icon="question"
-        )
-        if resp:
-            # Mostrar ventana de progreso
-            _r2 = _tk.Tk()
-            _r2.title("Instalando dependencias…")
-            _r2.configure(bg="#1a1a2e")
-            _r2.geometry("360x100")
-            _r2.resizable(False, False)
-            _r2.attributes("-topmost", True)
-            _tk.Label(_r2, text="Instalando PyInstaller, por favor espera…",
-                      font=("Segoe UI", 10), fg="#ffffff", bg="#1a1a2e").pack(pady=20)
-            _r2.update()
-            _apply_main_icon(_r2)
-            _r2.update()
-
-            install = subprocess.run(
-                [python_path, "-m", "pip", "install", "--upgrade", "pyinstaller"],
-                capture_output=True, text=True  # SIN creationflags para que pip funcione bien
+        # ── 2. Comprobar versión mínima (3.13) ────────────────────────────────────
+        try:
+            result = subprocess.run(
+                [python_path, "--version"],
+                capture_output=True, text=True, timeout=5
             )
-            _r2.destroy()
+            ver_str = (result.stdout or "").strip() or (result.stderr or "").strip()
+            # Extraer número: "Python 3.13.1" → (3, 13)
+            parts = ver_str.replace("Python", "").strip().split(".")
+            major, minor = int(parts[0]), int(parts[1])
+            if (major, minor) < (3, 13):
+                import tkinter as _tk
+                from tkinter import messagebox as _mb
+                _r = _tk.Tk(); _r.withdraw()
+                res = _mb.askyesno(
+                    "Python desactualizado",
+                    f"Se encontró Python {ver_str} pero AlsoPlaying necesita Python 3.13 o superior.\n\n"
+                    "¿Quieres que descargue e instale la versión 3.13 automáticamente?",
+                    icon="warning"
+                )
+                if res:
+                    _install_python_automated(_r)
+                
+                resp = _mb.askyesno(
+                    "Alternativa manual",
+                    "¿Prefieres abrir la página de descarga para hacerlo tú mismo?",
+                    icon="warning"
+                )
+                if resp:
+                    webbrowser.open("https://www.python.org/downloads/release/python-3130/")
+                _r.destroy()
+                sys.exit(0)
+        except Exception:
+            pass
 
-            # Verificar que quedó correctamente instalado
-            r_verify = subprocess.run(
+        # ── 3. Comprobar / instalar PyInstaller ───────────────────────────────────
+        try:
+            r_pi = subprocess.run(
                 [python_path, "-c",
                  "import importlib.util; "
                  "s=importlib.util.find_spec('PyInstaller'); "
                  "print('ok' if s else 'missing')"],
-                capture_output=True, text=True
+                capture_output=True, text=True, timeout=10
             )
-            install_verified = r_verify.returncode == 0 and "ok" in r_verify.stdout
+            pyinstaller_ok = r_pi.returncode == 0 and "ok" in (r_pi.stdout or "")
+        except Exception:
+            pyinstaller_ok = False
 
-            if install_verified:
-                _mb.showinfo("¡Listo!", "PyInstaller instalado correctamente.\nAlsoPlaying está listo para usar.")
-            elif install.returncode == 0:
-                _mb.showwarning("Aviso",
-                    "pip terminó sin errores pero PyInstaller no importa correctamente.\n"
-                    "Prueba manualmente en una terminal:\n  pip install pyinstaller")
-                _r.destroy()
-                sys.exit(0)
+        if not pyinstaller_ok:
+            import tkinter as _tk
+            from tkinter import messagebox as _mb
+            _r = _tk.Tk(); _r.withdraw()
+            _apply_main_icon(_r)
+            resp = _mb.askyesno(
+                "Paso 2: Instalar PyInstaller",
+                "Python se detectó correctamente, pero falta un complemento llamado 'PyInstaller' para crear los .exe.\n\n"
+                "¿Quieres instalarlo ahora automáticamente? (Tardará unos segundos)",
+                icon="question"
+            )
+            if resp:
+                # Mostrar ventana de progreso
+                _r2 = _tk.Tk()
+                _r2.title("Instalando dependencias…")
+                _r2.configure(bg="#1a1a2e")
+                _r2.geometry("360x100")
+                _r2.resizable(False, False)
+                _r2.attributes("-topmost", True)
+                _tk.Label(_r2, text="Instalando PyInstaller, por favor espera…",
+                          font=("Segoe UI", 10), fg="#ffffff", bg="#1a1a2e").pack(pady=20)
+                _r2.update()
+                _apply_main_icon(_r2)
+                _r2.update()
+
+                try:
+                    install = subprocess.run(
+                        [python_path, "-m", "pip", "install", "--upgrade", "pyinstaller"],
+                        capture_output=True, text=True, timeout=180
+                    )
+                except Exception as e:
+                    _r2.destroy()
+                    _mb.showerror("Error", f"Fallo al invocar pip install: {str(e)}")
+                    sys.exit(0)
+
+                _r2.destroy()
+
+                # Verificar que quedó correctamente instalado
+                try:
+                    r_verify = subprocess.run(
+                        [python_path, "-c",
+                         "import importlib.util; "
+                         "s=importlib.util.find_spec('PyInstaller'); "
+                         "print('ok' if s else 'missing')"],
+                        capture_output=True, text=True, timeout=10
+                    )
+                    install_verified = r_verify.returncode == 0 and "ok" in (r_verify.stdout or "")
+                except Exception:
+                    install_verified = False
+
+                if install_verified:
+                    _mb.showinfo("¡Listo!", "PyInstaller instalado correctamente.\nAlsoPlaying está listo para usar.")
+                elif install.returncode == 0:
+                    _mb.showwarning("Aviso",
+                        "pip terminó sin errores pero PyInstaller no importa correctamente.\n"
+                        "Prueba manualmente en una terminal:\n  pip install pyinstaller")
+                    _r.destroy()
+                    sys.exit(0)
+                else:
+                    _mb.showerror("Error", f"No se pudo instalar PyInstaller:\n\n{install.stderr[-400:]}")
+                    _r.destroy()
+                    sys.exit(0)
             else:
-                _mb.showerror("Error", f"No se pudo instalar PyInstaller:\n\n{install.stderr[-400:]}")
-                _r.destroy()
-                sys.exit(0)
-        else:
-            _mb.showwarning("Aviso", "Sin PyInstaller no se pueden generar .exe.\nPuedes instalarlo manualmente con:\n  pip install pyinstaller")
-        _r.destroy()
+                _mb.showwarning("Aviso", "Sin PyInstaller no se pueden generar .exe.\nPuedes instalarlo manualmente con:\n  pip install pyinstaller")
+            _r.destroy()
 
-    return python_path
+        return python_path
+    except Exception as e:
+        import tkinter.messagebox as _mb
+        print(f"Error crítico en check_environment: {e}")
+        return None
 
 
 if __name__ == "__main__":
-    import multiprocessing
-    multiprocessing.freeze_support()  # Evita bucle infinito de procesos en Windows (.exe PyInstaller)
+    try:
+        import multiprocessing
+        multiprocessing.freeze_support()  # Evita bucle infinito de procesos en Windows (.exe PyInstaller)
+    except Exception:
+        pass
 
-    _is_compiled_exe = getattr(sys, "frozen", False)
-    if _is_compiled_exe:
-        # Corremos como .exe compilado: Python ya está embebido, no hay que buscarlo.
-        # El usuario no necesita tener Python instalado para usar la app.
-        # Solo necesitará Python si quiere generar sus propios .exe desde la UI.
-        app = CreatorApp()
-        app.python_path = None  # se detectará bajo demanda en _build_exe
-        app.run()
-    else:
-        # Corremos desde el código fuente: necesitamos Python + PyInstaller
-        python_path = check_environment()
-        app = CreatorApp()
-        app.python_path = python_path  # guardar para usarlo al compilar
-        app.run()
+    def _crash_dialog(msg: str):
+        """Muestra un error crítico al usuario y termina."""
+        try:
+            import tkinter as _tk
+            import tkinter.messagebox as _mb
+            _r = _tk.Tk()
+            _r.withdraw()
+            _mb.showerror("AlsoPlaying - Error Crítico", msg)
+            _r.destroy()
+        except Exception:
+            print(f"[ERROR CRÍTICO] {msg}")
+        sys.exit(1)
+
+    try:
+        _is_compiled_exe = getattr(sys, "frozen", False)
+        if _is_compiled_exe:
+            # Corremos como .exe compilado: Python ya está embebido, no hay que buscarlo.
+            # El usuario no necesita tener Python instalado para usar la app.
+            # Solo necesitará Python si quiere generar sus propios .exe desde la UI.
+            try:
+                app = CreatorApp()
+                app.python_path = None  # se detectará bajo demanda en _build_exe
+                app.run()
+            except SystemExit:
+                pass
+            except Exception as e:
+                _crash_dialog(
+                    f"No se pudo iniciar AlsoPlaying:\n\n{e}\n\n"
+                    "Intenta ejecutarlo de nuevo. Si el error persiste, "
+                    "reinstala la aplicación."
+                )
+        else:
+            # Corremos desde el código fuente: necesitamos Python + PyInstaller
+            try:
+                python_path = check_environment()
+            except SystemExit:
+                sys.exit(0)
+            except Exception as e:
+                _crash_dialog(f"Error al comprobar el entorno:\n{e}")
+
+            try:
+                app = CreatorApp()
+                app.python_path = python_path  # guardar para usarlo al compilar
+                app.run()
+            except SystemExit:
+                pass
+            except Exception as e:
+                _crash_dialog(
+                    f"No se pudo iniciar AlsoPlaying:\n\n{e}\n\n"
+                    "Intenta ejecutarlo de nuevo o reinstala la aplicación."
+                )
+    except SystemExit:
+        pass
+    except Exception as e:
+        _crash_dialog(f"Error fatal al arrancar:\n{e}")
