@@ -30,11 +30,10 @@ class GameTrackerWidget:
         if ICON_B64:
             try:
                 icon_data = base64.b64decode(ICON_B64)
-                tmp_icon = os.path.join(tempfile.gettempdir(), "gt_icon.png")
+                tmp_icon = os.path.join(tempfile.gettempdir(), "gt_icon.ico")
                 with open(tmp_icon, "wb") as f:
                     f.write(icon_data)
-                img = tk.PhotoImage(file=tmp_icon)
-                self.root.iconphoto(True, img)
+                self.root.iconbitmap(tmp_icon)
             except Exception:
                 pass
 
