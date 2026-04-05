@@ -2,7 +2,7 @@
 
 ## [v1.1.0] - 2026-03-22
 
-### Added
+### Added.
 - **New Feature**: Added a folder selection field to choose where generated widgets are saved (defaults to Desktop).
 - **Localization**: Full support for English and Spanish with automatic system language detection.
 - **Automated Setup**: 
