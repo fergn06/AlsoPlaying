@@ -45,9 +45,9 @@ LOCALIZATION = {
         "close": "■  CLOSE",
         "output_folder": "Output folder",
         "select_folder": "Select folder",
-        "info_title": "AlsoPlaying V1.0",
+        "info_title": "AlsoPlaying V2.0",
 
-        "info_msg": "Created by Fernando Guerrero Nuez\n\nhttps://fernandoguerreronuez.com",
+        "info_msg": "Created by:\nFernando Guerrero Nuez - https://fernandoguerreronuez.com\n\nContributors:\nDaniel García Brun - https://danielgarciabrun.com",
         "fatal_error": "Fatal Error",
         "unexpected_error": "An unexpected error occurred:\n\n{}",
         "python_install_offer_title": "Auto-install Python?",
@@ -102,9 +102,9 @@ LOCALIZATION = {
         "close": "■  CERRAR",
         "output_folder": "Carpeta de destino",
         "select_folder": "Seleccionar carpeta",
-        "info_title": "AlsoPlaying V1.0",
+        "info_title": "AlsoPlaying V2.0",
 
-        "info_msg": "Creado por Fernando Guerrero Nuez\n\nhttps://fernandoguerreronuez.com",
+        "info_msg": "Creado por:\nFernando Guerrero Nuez - https://fernandoguerreronuez.com\n\nContribuidores:\nDaniel García Brun - https://danielgarciabrun.com",
         "fatal_error": "Error Fatal",
         "unexpected_error": "Ha ocurrido un error inesperado:\n\n{}",
         "python_install_offer_title": "¿Auto-instalar Python?",
