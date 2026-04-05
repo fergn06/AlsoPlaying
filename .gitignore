@@ -1,0 +1,23 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller settings
+build/
+dist/
+*.spec
+
+# Virtual Environments
+venv/
+.venv/
+env/
+
+# IDE settings
+.vscode/
+.idea/
+
+# Temporary assets
+alsoplaying.ico
+extract_icon.py
+build_log.txt

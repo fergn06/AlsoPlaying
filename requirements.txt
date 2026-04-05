@@ -1,0 +1,3 @@
+pyinstaller>=6.5.0
+# tkinter is usually included with Python, but for some users:
+# tk
